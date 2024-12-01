@@ -1,4 +1,8 @@
-Flask
 sentence-transformers
 torch
 numpy
+Flask
+requests
+beautifulsoup4
+lxml
+python-dotenv

@@ -67,3 +67,17 @@ class SolutionModel:
         self.solutions_db[question] = {"rca": rca, "solution": solution}
         self.save_solutions_db()
         return "Solution stored successfully"
+
+    def store_solutions_bulk(self, solutions):
+        """Store multiple RCA and solution pairs in bulk."""
+        success_count = 0
+        for solution_data in solutions:
+            question = solution_data.get('question')
+            rca = solution_data.get('rca')
+            solution = solution_data.get('solution')
+
+            if question and rca and solution:
+                self.store_solution(question, rca, solution)
+                success_count += 1
+
+        return success_count

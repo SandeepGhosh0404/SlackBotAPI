@@ -1,4 +1,8 @@
 import os
 
 class Config:
-    MODEL_NAME = 'all-MiniLM-L6-v2'  
+    CONFLUENCE_BASE_URL = os.getenv("CONFLUENCE_BASE_URL")
+    CONFLUENCE_USERNAME = os.getenv("CONFLUENCE_USERNAME")
+    CONFLUENCE_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
+    MODEL_NAME = 'all-MiniLM-L6-v2'
+  

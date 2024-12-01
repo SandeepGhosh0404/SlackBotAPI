@@ -1,5 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.models.model import SolutionModel
+from app.handlers.confluence_handlers import get_confluence_page, generate_table_row_html, update_confluence_page, get_confluence_page_data
+from app.utils.utils import add_row_to_html_table
 
 compare_bp = Blueprint('compare', __name__)
 
@@ -9,11 +11,9 @@ solution_model = SolutionModel()
 @compare_bp.route('/compare', methods=['POST'])
 def compare_sentences():
     try:
-        # Get the data from the request
         data = request.get_json()
         new_question = data['new_question']
 
-        # Get the solution for the new question
         solution, similarity_score = solution_model.get_solution(new_question)
 
         if solution is not None:
@@ -27,22 +27,57 @@ def compare_sentences():
                 "similarity_score": similarity_score
             })
     except Exception as e:
-        # In case of any error, return an error message
         return jsonify({"error": str(e)}), 400
-
 
 @compare_bp.route('/store_solution', methods=['POST'])
 def store_solution():
     try:
         # Get the data from the request
         data = request.get_json()
-        question = data['question']
-        rca = data['rca']
-        solution = data['solution']
 
-        # Store the RCA and solution
-        message = solution_model.store_solution(question, rca, solution)
+        if isinstance(data, list):  # If it's a bulk request (list of solutions)
+            success_count = solution_model.store_solutions_bulk(data)
+            return jsonify({"message": f"{success_count} solutions stored successfully"})
+        else:  # Single solution request
+            question = data['question']
+            rca = data['rca']
+            solution = data['solution']
+            message = solution_model.store_solution(question, rca, solution)
+            return jsonify({"message": message})
 
-        return jsonify({"message": message})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+    
+@compare_bp.route('/confluence/table', methods=['GET'])
+def confluence_table():
+    page_id = request.args.get('pageID')
+    if not page_id:
+        return jsonify({"error": "Page ID is required"}), 400
+    
+    try:
+        table_data = get_confluence_page(page_id)
+        return jsonify(table_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@compare_bp.route('/confluence/add-row',methods=['POST'])
+def add_row_to_confluence():
+    request_data = request.get_json()
+    page_id = request_data.get("page_id")
+    columns = request_data.get("columns")
+    
+    if not page_id or not columns:
+        return jsonify({"error": "Page ID and Columns are required"}), 400
+
+    new_row = generate_table_row_html(columns)
+
+    try:
+        page = get_confluence_page_data(page_id)
+        print(page)
+        updated_content = add_row_to_html_table(page['body']['storage']['value'], new_row)
+        new_version = page['version']['number'] + 1
+        update_confluence_page(page_id, page['title'], updated_content, new_version)
+        return jsonify({"message": "Row added successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to update Confluence page: {str(e)}"}), 500
+ 

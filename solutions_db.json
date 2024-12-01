@@ -10,5 +10,17 @@
     "What is the currency of India?": {
         "rca": "Customer asked for the currency of India.",
         "solution": "The currency of India is the Rupees."
+    },
+    "Why did the system crash?": {
+        "rca": "Memory overflow due to excessive data load",
+        "solution": "Increase memory allocation and optimize data processing"
+    },
+    "Why is the API rate-limited?": {
+        "rca": "Too many requests within a short time period",
+        "solution": "Implement rate-limiting with retries and exponential backoff"
+    },
+    "Why are orders not syncing with the warehouse system?": {
+        "rca": "API connection issues due to timeout errors",
+        "solution": "Increase the timeout threshold and retry failed requests"
     }
 }
