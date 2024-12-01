@@ -1,20 +1,15 @@
 {
     "version": 2,
+    "functions": {
+      "api/**/*.py": {
+        "runtime": "python3.9"
+      }
+    },
     "builds": [
       {
         "src": "run.py",
         "use": "@vercel/python"
       }
-    ],
-    "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "run.py"
-      }
-    ],
-    "env": {
-      "FLASK_ENV": "production"
-    },
-    "ignoreCommand": "git check-ignore -v ."
+    ]
   }
   

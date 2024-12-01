@@ -32,3 +32,4 @@ instance/
 # Deployment-specific files
 *.tar.gz
 *.zip
+.vercel
