@@ -1,0 +1,34 @@
+# Python virtual environment
+venv/
+env/
+
+# Byte-compiled / optimized / compiled Python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# MacOS specific files
+.DS_Store
+
+# Cloud-specific configurations
+*.pem  # AWS private keys
+*.key  # SSL keys
+
+# IDE-specific files
+.idea/
+*.vscode/
+
+# Flask-specific files
+instance/
+*.db  # SQLite database if used locally
+*.sqlite3
+
+# Deployment-specific files
+*.tar.gz
+*.zip

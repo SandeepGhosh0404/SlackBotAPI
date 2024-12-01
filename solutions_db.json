@@ -1,0 +1,14 @@
+{
+    "What is the capital of France?": {
+        "rca": "The issue was raised with a customer asking for the capital of France.",
+        "solution": "The capital of France is Paris."
+    },
+    "What is the currency of Japan?": {
+        "rca": "Customer asked for the currency of Japan.",
+        "solution": "The currency of Japan is the Yen."
+    },
+    "What is the currency of India?": {
+        "rca": "Customer asked for the currency of India.",
+        "solution": "The currency of India is the Rupees."
+    }
+}
