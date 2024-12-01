@@ -5,6 +5,6 @@ def create_app():
     app = Flask(__name__)
 
     # Register Blueprint for the  routes
-    app.register_blueprint(compare_bp, url_prefix='/api')
+    app.register_blueprint(compare_bp)
 
     return app

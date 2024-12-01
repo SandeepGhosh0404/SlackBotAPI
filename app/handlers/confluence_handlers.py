@@ -5,7 +5,6 @@ from app.utils.utils import get_confluence_page_data
 from app.config import Config
 
 def get_confluence_page(page_id):
-    # Fetch the Confluence page using the page ID
     page_data = get_confluence_page_data(page_id)
     
     if not page_data or 'body' not in page_data or 'storage' not in page_data['body']:
@@ -13,7 +12,6 @@ def get_confluence_page(page_id):
     
     page_content = page_data['body']['storage']['value']
     
-    # Parse the table from the page content
     table_data = parse_table_from_confluence_page(page_content)
     
     if not table_data:

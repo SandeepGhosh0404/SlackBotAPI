@@ -2,10 +2,11 @@ from flask import Blueprint, request, jsonify
 from app.models.model import SolutionModel
 from app.handlers.confluence_handlers import get_confluence_page, generate_table_row_html, update_confluence_page, get_confluence_page_data
 from app.utils.utils import add_row_to_html_table
+from app.handlers.slack_handlers import respond_to_mention
 
 compare_bp = Blueprint('compare', __name__)
 
-# Initialize SolutionModel
+processed_events = set()
 solution_model = SolutionModel()
 
 @compare_bp.route('/compare', methods=['POST'])
@@ -32,10 +33,9 @@ def compare_sentences():
 @compare_bp.route('/store_solution', methods=['POST'])
 def store_solution():
     try:
-        # Get the data from the request
         data = request.get_json()
 
-        if isinstance(data, list):  # If it's a bulk request (list of solutions)
+        if isinstance(data, list):
             success_count = solution_model.store_solutions_bulk(data)
             return jsonify({"message": f"{success_count} solutions stored successfully"})
         else:  # Single solution request
@@ -80,4 +80,42 @@ def add_row_to_confluence():
         return jsonify({"message": "Row added successfully"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update Confluence page: {str(e)}"}), 500
- 
+
+@compare_bp.route('/slack/events', methods=['POST'])
+def events_handler():
+    """Handles incoming Slack events."""
+    try:
+        slack_event = request.get_json()
+
+        # Verify the URL challenge
+        if slack_event.get('type') == 'url_verification':
+            return jsonify({'challenge': slack_event.get('challenge')})
+
+        # Handle event callback (e.g., app_mention)
+        if slack_event.get('type') == 'event_callback':
+            event = slack_event.get('event', {})
+            if event.get('type') == 'app_mention':
+                print(f"Mention received: {event.get('text')}")
+
+                # Get the unique client_msg_id to track processed events
+                client_msg_id = event.get('client_msg_id')
+
+                # If the event has already been processed, ignore it
+                if client_msg_id in processed_events:
+                    print(f"Duplicate event detected. Ignoring.")
+                    return '', 200
+
+                # Store the event ID to prevent future duplicates
+                processed_events.add(client_msg_id)
+
+                # Process the event
+                channel = event.get('channel')
+                text = event.get('text')
+                thread_ts = event.get('thread_ts')  # Check if the event is part of a thread
+                respond_to_mention(channel, text, thread_ts)
+
+        return '', 200
+
+    except Exception as e:
+        print(f"Error handling Slack event: {e}")
+        return jsonify({'error': str(e)}), 500
