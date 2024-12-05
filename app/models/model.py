@@ -5,13 +5,10 @@ from sentence_transformers import SentenceTransformer, util
 class SolutionModel:
     def __init__(self, db_file='solutions_db.json'):
         """Initialize the SolutionModel with the model and database file."""
-        # Load the sentence transformer model
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         
-        # Database file path
         self.db_file = db_file
-        
-        # Load solutions database from JSON
+
         self.solutions_db = self.load_solutions_db()
 
     def load_solutions_db(self):
@@ -34,16 +31,12 @@ class SolutionModel:
         sentence_embeddings = self.model.encode(stored_questions)
         new_question_embedding = self.model.encode([new_question])
 
-        # Compute cosine similarity
         cosine_scores = util.pytorch_cos_sim(new_question_embedding, sentence_embeddings)
 
-        # Convert cosine_scores to a Python list (which is JSON serializable)
         cosine_scores_list = cosine_scores.cpu().detach().numpy().tolist()
 
-        # Get the index of the most similar sentence
         most_similar_index = np.argmax(cosine_scores_list)
 
-        # Get the similarity score for the most similar sentence
         similarity_score = cosine_scores_list[0][most_similar_index]
 
         return most_similar_index, similarity_score
@@ -56,7 +49,6 @@ class SolutionModel:
 
         most_similar_index, similarity_score = self.calculate_similarity(new_question, stored_questions)
 
-        # If similarity is above 60%, return the solution
         if similarity_score > 0.6:
             return self.solutions_db[stored_questions[most_similar_index]], similarity_score
         else:

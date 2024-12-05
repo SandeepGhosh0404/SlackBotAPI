@@ -1,4 +1,6 @@
 from flask import Blueprint, request, jsonify
+from app.models.classifier import classify_message, categorize_message
+from app.handlers.gpt_handlers import get_alert_info, analyze_sentence
 from app.models.model import SolutionModel
 from app.handlers.confluence_handlers import get_confluence_page, generate_table_row_html, update_confluence_page, get_confluence_page_data
 from app.utils.utils import add_row_to_html_table
@@ -119,3 +121,69 @@ def events_handler():
     except Exception as e:
         print(f"Error handling Slack event: {e}")
         return jsonify({'error': str(e)}), 500
+
+@compare_bp.route('/sync-confluence', methods=['GET'])
+def sync_confluence():
+    page_id = request.args.get('pageID')
+    if not page_id:
+        return jsonify({"error": "Page ID is required"}), 400
+    try:
+        result= []
+        table_data = get_confluence_page(page_id)
+        for row in table_data[1:]:
+            question, rca, solution = row
+            result.append({
+                "question": question,
+                "rca": rca,
+                "solution": solution
+            })
+        success_count = solution_model.store_solutions_bulk(result)
+        return jsonify({"message": f"{success_count} solutions stored successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@compare_bp.route('/alerts_info', methods=['GET'])
+def alert_info():
+    alert = request.json.get("alert", "")
+    if not alert:
+        return jsonify({"error": "No alert message provided"}), 400
+
+    result = get_alert_info(alert)
+    return jsonify(result)
+
+@compare_bp.route('/analyze', methods=['POST'])
+def analyze():
+    """
+    API endpoint to analyze a given sentence.
+    Expects a JSON payload with a "sentence" key.
+    """
+    try:
+        data = request.get_json()
+        if not data or "sentence" not in data:
+            return jsonify({"error": "Missing 'sentence' in request payload"}), 400
+
+        sentence = data["sentence"]
+
+        # Analyze the sentence
+        result = analyze_sentence(sentence)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@compare_bp.route('/classify', methods=['POST'])
+def classify():
+    data = request.get_json()
+
+    if 'message' not in data:
+        return jsonify({"error": "Missing 'message' in request"}), 400
+
+    message = data['message']
+
+    # Classify the message
+
+    classification_result = classify_message(message)
+    category = categorize_message(classification_result.get("label"))
+
+    return jsonify(category), 200

@@ -8,4 +8,5 @@ class Config:
     SLACK_VERIFICATION_TOKEN = os.getenv("SLACK_VERIFICATION_TOKEN")
     SLACK_RESPONSE_URL = os.getenv("SLACK_RESPONSE_URL")
     MODEL_NAME = 'all-MiniLM-L6-v2'
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
   

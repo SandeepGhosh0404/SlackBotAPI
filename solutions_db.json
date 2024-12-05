@@ -1,26 +1,138 @@
 {
-    "What is the capital of France?": {
-        "rca": "The issue was raised with a customer asking for the capital of France.",
-        "solution": "The capital of France is Paris."
+    "#91706: High Offset Lag in UpdateWac Consumer": {
+        "rca": "High offset lag due to increased message production or consumer slowdown caused by unoptimized processing or insufficient consumer instances.",
+        "solution": "Check consumer logs for bottlenecks.Scale up consumer group.Align message production rate with consumer capacity.Optimize message handling logic."
     },
-    "What is the currency of Japan?": {
-        "rca": "Customer asked for the currency of Japan.",
-        "solution": "The currency of Japan is the Yen."
+    "#91618: High CpuUser Percentage in Kafka Broker 6": {
+        "rca": "High CPU usage due to resource-intensive operations on Kafka Broker 6, such as high request volume or inefficient partition configurations.",
+        "solution": "Identify resource-intensive tasks in broker logs.Optimize partition assignments.Add or redistribute brokers to balance load.Monitor for recurring CPU spikes."
     },
-    "What is the currency of India?": {
-        "rca": "Customer asked for the currency of India.",
-        "solution": "The currency of India is the Rupees."
+    "#91541: High Offset Lag in UpdateWac Consumer": {
+        "rca": "Same as #91706 above.",
+        "solution": "Check consumer logs for bottlenecks.Scale up consumer group.Align message production rate with consumer capacity.Optimize message handling logic."
     },
-    "Why did the system crash?": {
-        "rca": "Memory overflow due to excessive data load",
-        "solution": "Increase memory allocation and optimize data processing"
+    "#91510: High CpuUser Percentage in Kafka Broker 4": {
+        "rca": "High CPU usage due to similar issues as in Broker 6 (e.g., high request volume or uneven partition distribution).",
+        "solution": "Identify resource-intensive tasks in broker logs.Optimize partition assignments.Add or redistribute brokers to balance load.Monitor for recurring CPU spikes."
     },
-    "Why is the API rate-limited?": {
-        "rca": "Too many requests within a short time period",
-        "solution": "Implement rate-limiting with retries and exponential backoff"
+    "#91421: SAP High Latency in Create SKU (> 20 seconds)": {
+        "rca": "High latency caused by inefficient API queries, bottlenecks in backend services, or large payloads being processed in the create SKU function.",
+        "solution": "Trace slow requests using APM tools.Optimize API queries and reduce payload size.Ensure backend services are scaled and responsive.Monitor latency metrics post-changes."
     },
-    "Why are orders not syncing with the warehouse system?": {
-        "rca": "API connection issues due to timeout errors",
-        "solution": "Increase the timeout threshold and retry failed requests"
+    "#91380: Elastic Cache: High Replication Lag in prod-zepto-redi": {
+        "rca": "Replication lag due to write-heavy workload or insufficiently provisioned replication nodes.",
+        "solution": "Increase replication node capacity.Monitor write operation patterns and optimize where possible.Enable Redis clustering.Perform a health check on replication configuration."
+    },
+    "#91378: High Offset Lag in UpdateWac Consumer": {
+        "rca": "Same as #91706 above.",
+        "solution": "Check consumer logs for bottlenecks.Scale up consumer group.Align message production rate with consumer capacity.Optimize message handling logic."
+    },
+    "#91335: High CpuUser Percentage in Kafka Broker 5": {
+        "rca": "Same as #91618 above.",
+        "solution": "Identify resource-intensive tasks in broker logs.Optimize partition assignments.Add or redistribute brokers to balance load.Monitor for recurring CPU spikes."
+    },
+    "#91334/91333: High CpuUser Percentage in Kafka Brokers 6/4": {
+        "rca": "High CPU usage due to uneven partition assignment or excessive consumer load.",
+        "solution": "Check partition assignment for even distribution.Analyze consumer behavior and optimize message handling.Redistribute load across brokers."
+    },
+    "#91036: DatasourceError in Grafana for Finance Container": {
+        "rca": "Error retrieving data from the finance container datasource due to connectivity or configuration issues.",
+        "solution": "Verify Grafana datasource configuration.Check connectivity between Grafana and the datasource.Restart the affected container and monitor."
+    },
+    "#90865/89956: IPS Service Error Rate Above 0.05%": {
+        "rca": "High error rate due to invalid requests, unhandled exceptions, or backend dependency failures.",
+        "solution": "Analyze error logs for root causes.Fix invalid request patterns and unhandled exceptions.Monitor backend service health."
+    },
+    "#90715/88762: High CPU Utilization in RDS Instance prod-zepto-db": {
+        "rca": "High query load or inefficient query patterns causing CPU overutilization.",
+        "solution": "Optimize SQL queries and indexes.Analyze query patterns for hotspots.Scale up RDS instance or enable read replicas."
+    },
+    "#90713: High Offset Lag in UpdateWac Consumer": {
+        "rca": "Offset lag due to consumer lagging behind or high message production rate.",
+        "solution": "Investigate consumer logs for bottlenecks.Scale up consumers.Optimize message processing logic."
+    },
+    "#90551: SAP High Latency in Create SKU": {
+        "rca": "Latency due to backend bottlenecks or inefficient API calls during SKU creation.",
+        "solution": "Trace API latency using APM tools.Optimize backend processing.Reduce payload size for SKU creation."
+    },
+    "#90511/89863: Elastic Cache High Replication Lag in prod-zepto-redi": {
+        "rca": "Write-heavy workload or inadequate replication resources causing lag.",
+        "solution": "Increase replication capacity.Analyze write patterns and optimize.Enable clustering for better scaling."
+    },
+    "#90481: High CPU Utilization in EC2 Celery Instance 7": {
+        "rca": "High CPU due to resource-intensive Celery tasks or misconfigured worker concurrency.",
+        "solution": "Check Celery task execution patterns.Adjust worker concurrency settings.Add more workers if needed."
+    },
+    "#90479: New Message in Inbound Meta DLT": {
+        "rca": "Messages detected in Dead Letter Topic (DLT) due to unprocessed or failed events.",
+        "solution": "Investigate message content in DLT.Fix underlying issues in consumer logic.Retry failed messages after issue resolution."
+    },
+    "#90418/90415/90414: High CpuUser Percentage in Kafka Brokers 4/6/5": {
+        "rca": "High CPU due to similar causes as other Kafka broker alerts: uneven partition load or resource-intensive processing.",
+        "solution": "Same as for Kafka broker CPU issues above."
+    },
+    "#90300: Invoicing-Service Query Result > 5.0": {
+        "rca": "Elevated query result indicates high latency or unoptimized queries in invoicing service.",
+        "solution": "Profile and optimize affected queries.Scale backend resources as needed.Monitor query performance post-optimization."
+    },
+    "#90050: Sap-Passthrough Throughput > 1000 for 3 Minutes": {
+        "rca": "High throughput due to a surge in incoming requests or misconfiguration in request handling.",
+        "solution": "Analyze request patterns.Throttle or batch requests if possible.Scale the passthrough service to handle increased load."
+    },
+    "#89973: Messages in order-events-v1.ips_order_events_consumer DLT": {
+        "rca": "Messages moved to DLT due to unhandled exceptions or invalid message format.",
+        "solution": "Analyze DLT messages for errors.Fix consumer code to handle edge cases.Reprocess valid messages after resolution."
+    },
+    "#88850: Low Cache Hit Rate in Invoice-Processing-Service Cluster": {
+        "rca": "High cache miss rate due to poor caching strategy or excessive cache invalidations.",
+        "solution": "Analyze caching strategy and optimize key utilization.Monitor cache eviction and adjust cache TTL.Scale cache cluster if needed."
+    },
+    "#88698: High CpuUser Percentage in WMS Kafka Broker 3": {
+        "rca": "High CPU usage in Kafka broker due to uneven partition load or resource-intensive consumer operations.",
+        "solution": "Redistribute partition load across brokers.Check consumer processing patterns and optimize.Add resources to the affected broker."
+    },
+    "Unable to generate the document of recirculation": {
+        "rca": "The outbound corresponding to this inbound is not found. The issue occurs due to the current WAC model not properly supporting SS and recirculation.",
+        "solution": "Migration to new WAC model. The new model will support SS and recirculation properly, eliminating this issue."
+    },
+    "SS document generation issue raised by ground team": {
+        "rca": "Incorrect or missing information on SS document due to wrong GSTIN entered. The error was identified in the Slack thread but no updates were made for correction.",
+        "solution": "Correct GSTIN: Ensure the correct GSTIN is entered for the buyer and retry the document generation process."
+    },
+    "Document generation issue - tax mapping failure": {
+        "rca": "The issue occurs because some SKUs have tax mapping that is exclusive of the price at which the event is created. Tax mapping for SKU is not valid or missing for some cases.",
+        "solution": "Correct data upload: Ensure that the tax mapping is properly configured and aligned with the price at which the event is created. Upload the corrected data for the SKU."
+    },
+    "Document generation issue due to tax mapping failure": {
+        "rca": "Checked Celery 21 logs for return number REMUM057S325. A query was executed to check the tax product variant mapping and tax code, but the range of tax mapping did not match the event's price.",
+        "solution": "Correct SKU tax mapping: Ensure the tax mapping is updated with the correct tax codes and variant IDs for all relevant SKUs. Validate and upload the correct data to resolve the issue."
+    },
+    "Document generation failed due to special characters in remarks": {
+        "rca": "The issue was caused by special characters in the remarks field while updating Eway details. The delivery number was marked as invalid due to this error.",
+        "solution": "Solution: Re-trigger the API call with corrected remarks without special characters. Mark the original delivery number as invalid (-F) and retry document generation. Solution to be executed by@Prateek Ranjan."
+    },
+    "Document generation failure due to incorrect DH store pincode": {
+        "rca": "Incorrect DH store pincode, which did not match the state code, caused an error in ClearTax.",
+        "solution": "Solution: Correct the pincode in the backend, mark the old document number as invalid (-F), and ask the team to retry document generation. Solution to be executed by@engg-support."
+    },
+    "Failure in generating SO documents due to Karnataka govt website issue": {
+        "rca": "A non-GSTIN flow was triggered due to issues with the Karnataka government website, bypassing the original flow.",
+        "solution": "Solution: Investigate the Karnataka govt website issue, ensure that the correct GSTIN flow is triggered, and address the root cause in the system. Solution to be executed by@Mohit Guptaand@Mohit Kori."
+    },
+    "Unable to generate secondary sales documents due to invalid assessable amount": {
+        "rca": "The error occurred because the SKUs' price was lower than the cess absolute, which caused the secondary sales document generation to fail.",
+        "solution": "Solution: Cancel the affected secondary sales documents. A new CSV file with eligible cost price for every SKU must be prepared and re-uploaded for the secondary sales (SS) documents to be dispatched. Solution to be executed by@Mohit Guptaand@Mohit Kori."
+    },
+    "Unable to generate documents due to incorrect distance between pin codes": {
+        "rca": "Pincode data configuration mismatch. The distance between two pin codes (333023 and 302026) was reported incorrectly as 20 kms instead of 203 kms, leading to failure in document generation.",
+        "solution": "Solution: Correct the pincode data configuration and re-trigger the document generation. Solution to be executed by@thor-on-call."
+    },
+    "Document generation failed due to incorrect HSN Code": {
+        "rca": "The failure occurred because an incorrect HSN code was used in the document generation process.",
+        "solution": "Solution: Update the correct HSN code and retry document generation. Solution to be executed by@Radhika Poojari."
+    },
+    "Document generation failure due to invalid pin code mapping (NIC response error)": {
+        "rca": "The error was caused by an invalid pin code (1210004) in the buyer details, which did not match the correct state code (06) as per NIC master list.",
+        "solution": "Solution: Update the correct pin code for this location, revalidate the state-code mapping, and retry the document generation. Solution to be executed by@engg-support."
     }
 }
