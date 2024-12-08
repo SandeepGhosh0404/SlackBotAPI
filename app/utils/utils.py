@@ -1,4 +1,4 @@
-import os
+import re
 import requests
 from dotenv import load_dotenv
 from app.config import Config
@@ -7,7 +7,6 @@ from flask import  jsonify
 load_dotenv()
 
 def get_confluence_page_data(page_id):
-    # Get environment variables
     base_url = Config.CONFLUENCE_BASE_URL
     username = Config.CONFLUENCE_USERNAME
     api_token = Config.CONFLUENCE_API_TOKEN
@@ -31,14 +30,13 @@ def add_row_to_html_table(html_content, new_row):
     return html_content
 
 def format_alert_response(response_data):
+    alert = response_data.get("alert","Not an alert")
     rca = response_data.get("rca", "No RCA provided")
     insight = response_data.get("insight", "No insight available")
     resolution_steps = response_data.get("resolution_steps", [])
 
-    # Format the resolution steps as a list
     formatted_resolution_steps = "\n".join([f"*Step {i + 1}:* {step}" for i, step in enumerate(resolution_steps)])
 
-    # Create a formatted string for Slack
     formatted_message = (
         f"📢 *Alert Detected!*\n\n"
         f"*Root Cause Analysis (RCA):*\n"
@@ -49,7 +47,7 @@ def format_alert_response(response_data):
         f"{formatted_resolution_steps}"
     )
 
-    return formatted_message
+    return formatted_message,alert, rca, insight, formatted_resolution_steps
 
 def open_modal(trigger_id):
     """
@@ -83,7 +81,6 @@ def open_modal(trigger_id):
                     "element": {
                         "type": "plain_text_input",
                         "action_id": "problem_input",
-                        "initial_value": "Pre-filled problem description here"
                     },
                     "label": {
                         "type": "plain_text",
@@ -98,7 +95,6 @@ def open_modal(trigger_id):
                     "element": {
                         "type": "plain_text_input",
                         "action_id": "rca_input",
-                        "initial_value": "Pre-filled RCA here"
                     },
                     "label": {
                         "type": "plain_text",
@@ -138,7 +134,7 @@ def open_modal(trigger_id):
                 {
                     "type": "input",
                     "block_id": "remarks_block",
-                    "optional": True,  # This makes the field optional
+                    "optional": True,
                     "element": {
                         "type": "plain_text_input",
                         "action_id": "remarks_input"
@@ -168,3 +164,37 @@ def open_modal(trigger_id):
 
     response = requests.post(url, headers=headers, json=modal_view)
     print(f"Modal Open Response: {response.json()}")
+
+def remove_bot_mention(text):
+    cleaned_text = re.sub(r'<@[A-Z0-9]+>', '', text)
+    return cleaned_text
+
+def get_user_info(user_id):
+    url = "https://slack.com/api/users.info"
+    params = {
+        "user": user_id
+    }
+    headers = {
+        "Authorization": f"Bearer {Config.SLACK_BOT_TOKEN}"
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+
+    if response.status_code == 200:
+        user_info = response.json()
+        print("USER", user_info)
+        if user_info["ok"]:
+            # Extract the username (either display_name or real_name)
+            username = user_info["user"].get("profile", {}).get("real_name", "NA")
+            return username
+        else:
+            return f"Error: {user_info['error']}"
+    else:
+        return f"Error: Unable to reach Slack API, status code: {response.status_code}"
+
+def get_usernames_from_ids(user_ids):
+    usernames = []
+    for user_id in user_ids:
+        username = get_user_info(user_id)
+        usernames.append(username)
+    return usernames

@@ -1,7 +1,7 @@
 from flask import jsonify
 from app.config import Config
 from app.handlers.confluence_handlers import generate_table_row_html, get_confluence_page_data, update_confluence_page
-from app.utils.utils import add_row_to_html_table
+from app.utils.utils import add_row_to_html_table, get_usernames_from_ids
 
 
 def handle_rca_submission(payload):
@@ -12,14 +12,15 @@ def handle_rca_submission(payload):
     short_term_fix = state_values["short_term_fix_block"]["short_term_fix_input"]["value"]
     remarks = state_values.get("remarks_block", {}).get("remarks_input", {}).get("value", "")
     spocs = state_values["spoc_block"]["spoc_input"]["selected_users"]
+    usernames = get_usernames_from_ids(spocs)
 
     print(f"Problem: {problem}")
     print(f"RCA: {rca}")
     print(f"Long Term Fix: {long_term_fix}")
     print(f"Short Term Fix: {short_term_fix}")
     print(f"Remarks: {remarks}")
-    print(f"SPOCs: {', '.join(spocs)}")
-    columns = [problem, rca, long_term_fix, short_term_fix, remarks]
+    print(f"SPOCs: {', '.join(usernames)}")
+    columns = [problem, rca, long_term_fix, short_term_fix, remarks,', '.join(usernames)]
 
     new_row = generate_table_row_html(columns)
 

@@ -4,7 +4,7 @@ from app.models.classifier import classify_message, categorize_message
 from app.handlers.gpt_handlers import get_alert_info, analyze_sentence
 from app.models.model import SolutionModel
 from app.handlers.confluence_handlers import get_confluence_page, generate_table_row_html, update_confluence_page, get_confluence_page_data
-from app.utils.utils import add_row_to_html_table
+from app.utils.utils import add_row_to_html_table, remove_bot_mention
 from PIL import Image
 import pytesseract
 from slack_sdk import WebClient
@@ -15,6 +15,7 @@ from app.utils.utils import format_alert_response,open_modal
 from app.handlers.common import handle_rca_submission
 from slack_sdk.signature import SignatureVerifier
 import json
+import re
 
 compare_bp = Blueprint('compare', __name__)
 
@@ -32,7 +33,6 @@ def compare_sentences():
         new_question = data['new_question']
 
         solution, similarity_score = solution_model.get_solution(new_question)
-
         if solution is not None:
             return jsonify({
                 "answer": solution["solution"],
@@ -176,31 +176,53 @@ def extract_text():
 
 @compare_bp.route("/slack/command", methods=['POST'])
 def handle_slash_command():
-    # Acknowledge the slash command by sending a 200 OK response immediately
-    response = jsonify({"response_type": "ephemeral"})  # Optional: Add response_type if needed for feedback
-    response.status_code = 200
+    try:
+        # Send immediate response to Slack to avoid "invalid_command_response" error
+        response = jsonify({
+            "response_type": "ephemeral",
+            "text": "Opening the Finance On-Call modal..."
+        })
+        response.status_code = 200
 
-    # Open a modal
-    client.views_open(
-        trigger_id=request.form["trigger_id"],
-        view={
-            "type": "modal",
-            "callback_id": "modal_submission",
-            "title": {"type": "plain_text", "text": "Finance on call bot"},
-            "blocks": [
-                {
-                    "type": "input",
-                    "block_id": "user_input_block",
-                    "element": {
-                        "type": "plain_text_input",
-                        "action_id": "user_input_action",
+        # Open a modal using the Slack API (this will happen after the 200 OK response)
+        client.views_open(
+            trigger_id=request.form["trigger_id"],
+            view={
+                "type": "modal",
+                "callback_id": "modal_submission",
+                "title": {"type": "plain_text", "text": "Finance On-Call Bot"},
+                "blocks": [
+                    {
+                        "type": "input",
+                        "block_id": "issue_block",
+                        "element": {
+                            "type": "plain_text_input",
+                            "action_id": "issue_input",
+                            "multiline": True  # Allows multiple lines for the issue
+                        },
+                        "label": {"type": "plain_text", "text": "Issue (Required)"},
+                        "optional": False  # This makes it a required input
                     },
-                    "label": {"type": "plain_text", "text": "Enter something:"},
-                }
-            ],
-            "submit": {"type": "plain_text", "text": "Submit"},
-        },
-    )
+                    {
+                        "type": "input",
+                        "block_id": "error_block",
+                        "element": {
+                            "type": "plain_text_input",
+                            "action_id": "error_input",
+                            "multiline": True  # Allows multiple lines for the error
+                        },
+                        "label": {"type": "plain_text", "text": "Error (Optional)"},
+                        "optional": True  # This makes it an optional input
+                    }
+                ],
+                "submit": {"type": "plain_text", "text": "Submit"}
+            },
+        )
+
+    except Exception as e:
+        print(f"Error opening modal: {e}")
+        response = jsonify({"response_type": "ephemeral", "text": "Failed to open modal."})
+        response.status_code = 500
 
     return response
 
@@ -218,26 +240,27 @@ def handle_message(event, say, client):
     bot_id = event.get('bot_id')
     thread_ts = event.get('thread_ts')
 
-    if thread_ts:
+    url_pattern = r'^(https?://|www\.)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(/\S*)?'
+
+    print(message_text)
+
+    if thread_ts or message_text[0:8] !="*<https:":
         print("This is a reply in a thread. Skipping processing.")
         return
 
     if channel_id == Config.ALERT_CHANNEL_ID and user and not bot_id:
-        # Get the alert response from GPT (This will be your RCA response)
         gpt_response = get_alert_info(message_text)
-        formatted_alert_response = format_alert_response(gpt_response)
-
-        # Send the alert response with a button to trigger RCA
+        formatted_message, alert, rca, insight, formatted_resolution_steps = format_alert_response(gpt_response)
         client.chat_postMessage(
-            channel=channel_id,  # Send the message to the same channel
-            text=formatted_alert_response,  # Set the formatted message as the main text
-            thread_ts=message_ts,  # Ensure the response is in the thread
+            channel=channel_id,
+            text=formatted_message,
+            thread_ts=message_ts,
             blocks=[
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": formatted_alert_response  # Adding the formatted RCA message here
+                        "text": formatted_message  # Adding the formatted RCA message here
                     }
                 },
                 {
@@ -338,7 +361,74 @@ def handle_rca_command():
 
     return jsonify({"response_type": "ephemeral"}), 200
 
+@app.event("app_mention")
+def handle_mention(event, say):
+    """Handles @mention of the bot."""
+    user_id = event.get("user")
+    channel_id = event.get("channel")
+    thread_ts = event.get("thread_ts")
+    message_ts = event.get("ts")
+    text = event.get("text")
+    cleaned_text = text.replace(f"<@{app.client.auth_test()['user_id']}>", "").strip()
+    solution, similarity_score = solution_model.get_solution(cleaned_text)
 
+    if solution:
+        response_text = f"*Hello <@{user_id}>!* Here's the most similar question you asked: \n\n" \
+                        f"*Question:* `{cleaned_text}`\n\n" \
+                        f"*Solution:* {solution}\n\n" \
+                        f"*Similarity Score:* {similarity_score}\n\n"
+    else:
+        response_text = f"*Hello <@{user_id}>!* I couldn't find a similar question to your query: \n\n" \
+                        f"*Question:* `{cleaned_text}`\n\n" \
+                        f"*Please provide the RCA and solution to help improve our knowledge base.*\n\n" \
+                        f"*Similarity Score:* {similarity_score}\n\n"
+
+    blocks = [
+        {
+            "type": "section",
+            "block_id": "solution_section",
+            "text": {
+                "type": "mrkdwn",
+                "text": response_text
+            }
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Add RCA"
+                    },
+                    "action_id": "button-action",
+                    "value": "add_rca"
+                }
+            ]
+        }
+    ]
+
+    try:
+        if thread_ts:
+            response = say(
+                text="Replying with solution",
+                thread_ts=thread_ts,
+                blocks=blocks
+            )
+        else:
+            response = say(
+                text="Replying with solution",
+                thread_ts=message_ts,
+                blocks=blocks
+            )
+
+        print(f"Message sent successfully: {response}")
+
+    except Exception as e:
+        print(f"Error occurred while sending message: {str(e)}")
+        return jsonify({"error": "Failed to send message"}), 500
+
+    return "", 200
 
 
 

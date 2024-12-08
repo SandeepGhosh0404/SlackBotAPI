@@ -14,4 +14,5 @@ class Config:
     SIGNING_SECRET = os.getenv("SIGNING_SECRET")
     TESTING = os.getenv("TESTING")
     CONFLUENCE_PAGE_ID: str = os.getenv("CONFLUENCE_PAGE_ID")
+    BOT_ID = os.getenv("BOT_ID")
   
