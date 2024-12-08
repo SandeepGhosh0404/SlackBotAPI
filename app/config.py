@@ -9,4 +9,9 @@ class Config:
     SLACK_RESPONSE_URL = os.getenv("SLACK_RESPONSE_URL")
     MODEL_NAME = 'all-MiniLM-L6-v2'
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    ALERT_CHANNEL_ID = os.getenv("ALERT_CHANNEL_ID")
+    SOCKET_TOKEN = os.getenv("SOCKET_TOKEN")
+    SIGNING_SECRET = os.getenv("SIGNING_SECRET")
+    TESTING = os.getenv("TESTING")
+    CONFLUENCE_PAGE_ID: str = os.getenv("CONFLUENCE_PAGE_ID")
   

@@ -17,13 +17,21 @@ def get_alert_info(alert):
         messages=[
             {
                 "role": "system",
-                "content": """You are an assistant specializing in monitoring alerts. Generate RCA details strictly in the following JSON schema:
+                "content": """You are an assistant specializing in generating detailed and actionable Root Cause Analysis (RCA) for system alerts.
+                When provided with an alert description, your response should include the most likely root cause, any useful insights, and a list of clear, actionable steps to resolve or investigate the issue.
+                Your response should be in the following JSON format:
                 {
-                    "rca": [
-                        "string (max 40 characters)",
+                    "rca": ["string (max 40 characters)"],
+                    "insight": "string (max 100 characters)",
+                    "resolution_steps": [
+                        "step 1",
+                        "step 2",
+                        "step 3"
                     ]
                 }
-                Each string in 'rca' should be a brief and most possible description of the root cause analysis, and there should be no more than 1 elements. Make the 'rca' brief such that i can be useful ( atleast 20 words)."""
+                The 'rca' field should be a short description of the root cause (at least 20 words, no more than 40 characters).
+                The 'insight' field should provide valuable context, including possible causes, network conditions, or recent changes.
+                The 'resolution_steps' should provide at least 3 actionable steps that can help resolve the issue or mitigate it, such as investigating processes, checking system logs, optimizing configurations, or scaling resources. Each step should be concise but informative."""
             },
             {"role": "user", "content": alert}
         ]
@@ -38,7 +46,6 @@ def get_alert_info(alert):
         response_data = {"error": "Invalid response format", "raw_content": response_content}
 
     return response_data
-
 
 def analyze_sentence(sentence: str) -> Dict[str, str]:
     completion = client.chat.completions.create(
@@ -75,4 +82,53 @@ def analyze_sentence(sentence: str) -> Dict[str, str]:
 
     return response_data
 
+
+def get_alert_info_with_context(alert, historical_data=None):
+    if historical_data:
+        prompt = f"""
+        The following is information from a previous discussion regarding alert analysis:
+
+        *Previous RCA(s)*: {historical_data.get('rca', 'N/A')}
+        *Short-Term Fixes*: {historical_data.get('short_term_fixes', 'N/A')}
+        *Long-Term Fixes*: {historical_data.get('long_term_fixes', 'N/A')}
+        *SPOC*: {historical_data.get('spoc', 'N/A')}
+        *Priority*: {historical_data.get('priority', 'N/A')}
+
+        Current alert:
+        *Alert*: {alert}
+
+        Based on the above, generate the RCA, insight, and resolution steps that incorporate both the previous information and your own analysis.
+        """
+    else:
+        prompt = f"""
+        A new alert has been detected:
+        *Alert*: {alert}
+
+        Please analyze the alert and provide:
+        1. Root Cause Analysis (RCA)
+        2. Insight
+        3. Resolution steps
+
+        Provide suggestions based on your analysis of the alert.
+        """
+
+    # Make the GPT API call
+    completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system",
+             "content": "You are an assistant specializing in monitoring alerts and providing RCA, insights, and resolution steps."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    # Extract and return the response
+    response_content = completion.choices[0].message.content
+
+    try:
+        response_data = json.loads(response_content)  # Ensure it parses as valid JSON
+    except json.JSONDecodeError:
+        response_data = {"error": "Invalid response format", "raw_content": response_content}
+
+    return response_data
 

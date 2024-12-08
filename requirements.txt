@@ -8,3 +8,7 @@ lxml
 python-dotenv~=1.0.1
 
 openai~=1.56.0
+pytesseract~=0.3.13
+pillow~=11.0.0
+transformers~=4.46.3
+slack-sdk~=3.33.5

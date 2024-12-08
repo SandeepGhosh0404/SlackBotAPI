@@ -1,15 +1,29 @@
 from flask import Blueprint, request, jsonify
+from slack_sdk.errors import SlackApiError
 from app.models.classifier import classify_message, categorize_message
 from app.handlers.gpt_handlers import get_alert_info, analyze_sentence
 from app.models.model import SolutionModel
 from app.handlers.confluence_handlers import get_confluence_page, generate_table_row_html, update_confluence_page, get_confluence_page_data
 from app.utils.utils import add_row_to_html_table
-from app.handlers.slack_handlers import respond_to_mention
+from PIL import Image
+import pytesseract
+from slack_sdk import WebClient
+from app.config import Config
+from slack_bolt import App
+from slack_bolt.adapter.flask import SlackRequestHandler
+from app.utils.utils import format_alert_response,open_modal
+from app.handlers.common import handle_rca_submission
+from slack_sdk.signature import SignatureVerifier
+import json
 
 compare_bp = Blueprint('compare', __name__)
 
 processed_events = set()
 solution_model = SolutionModel()
+app = App(token=Config.SLACK_BOT_TOKEN, signing_secret=Config.SIGNING_SECRET)
+handler = SlackRequestHandler(app)
+signature_verifier = SignatureVerifier(Config.SIGNING_SECRET)
+client = WebClient(token=Config.SLACK_BOT_TOKEN)
 
 @compare_bp.route('/compare', methods=['POST'])
 def compare_sentences():
@@ -40,7 +54,7 @@ def store_solution():
         if isinstance(data, list):
             success_count = solution_model.store_solutions_bulk(data)
             return jsonify({"message": f"{success_count} solutions stored successfully"})
-        else:  # Single solution request
+        else:
             question = data['question']
             rca = data['rca']
             solution = data['solution']
@@ -75,52 +89,12 @@ def add_row_to_confluence():
 
     try:
         page = get_confluence_page_data(page_id)
-        print(page)
         updated_content = add_row_to_html_table(page['body']['storage']['value'], new_row)
         new_version = page['version']['number'] + 1
         update_confluence_page(page_id, page['title'], updated_content, new_version)
         return jsonify({"message": "Row added successfully"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to update Confluence page: {str(e)}"}), 500
-
-@compare_bp.route('/slack/events', methods=['POST'])
-def events_handler():
-    """Handles incoming Slack events."""
-    try:
-        slack_event = request.get_json()
-
-        # Verify the URL challenge
-        if slack_event.get('type') == 'url_verification':
-            return jsonify({'challenge': slack_event.get('challenge')})
-
-        # Handle event callback (e.g., app_mention)
-        if slack_event.get('type') == 'event_callback':
-            event = slack_event.get('event', {})
-            if event.get('type') == 'app_mention':
-                print(f"Mention received: {event.get('text')}")
-
-                # Get the unique client_msg_id to track processed events
-                client_msg_id = event.get('client_msg_id')
-
-                # If the event has already been processed, ignore it
-                if client_msg_id in processed_events:
-                    print(f"Duplicate event detected. Ignoring.")
-                    return '', 200
-
-                # Store the event ID to prevent future duplicates
-                processed_events.add(client_msg_id)
-
-                # Process the event
-                channel = event.get('channel')
-                text = event.get('text')
-                thread_ts = event.get('thread_ts')  # Check if the event is part of a thread
-                respond_to_mention(channel, text, thread_ts)
-
-        return '', 200
-
-    except Exception as e:
-        print(f"Error handling Slack event: {e}")
-        return jsonify({'error': str(e)}), 500
 
 @compare_bp.route('/sync-confluence', methods=['GET'])
 def sync_confluence():
@@ -171,7 +145,6 @@ def analyze():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @compare_bp.route('/classify', methods=['POST'])
 def classify():
     data = request.get_json()
@@ -187,3 +160,186 @@ def classify():
     category = categorize_message(classification_result.get("label"))
 
     return jsonify(category), 200
+
+@compare_bp.route('/extract-text', methods=['POST'])
+def extract_text():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    image_file = request.files['image']
+    try:
+        image = Image.open(image_file)
+        text = pytesseract.image_to_string(image)
+        return jsonify({"text": text}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@compare_bp.route("/slack/command", methods=['POST'])
+def handle_slash_command():
+    # Acknowledge the slash command by sending a 200 OK response immediately
+    response = jsonify({"response_type": "ephemeral"})  # Optional: Add response_type if needed for feedback
+    response.status_code = 200
+
+    # Open a modal
+    client.views_open(
+        trigger_id=request.form["trigger_id"],
+        view={
+            "type": "modal",
+            "callback_id": "modal_submission",
+            "title": {"type": "plain_text", "text": "Finance on call bot"},
+            "blocks": [
+                {
+                    "type": "input",
+                    "block_id": "user_input_block",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "user_input_action",
+                    },
+                    "label": {"type": "plain_text", "text": "Enter something:"},
+                }
+            ],
+            "submit": {"type": "plain_text", "text": "Submit"},
+        },
+    )
+
+    return response
+
+@compare_bp.route("/slack/events", methods=["POST"])
+def slack_events():
+    return handler.handle(request)
+
+@app.event("message")
+def handle_message(event, say, client):
+    """Listen for messages in the specified channel and respond."""
+    channel_id = event.get('channel')
+    message_ts = event.get('ts')
+    message_text = event.get('text')
+    user = event.get('user')
+    bot_id = event.get('bot_id')
+    thread_ts = event.get('thread_ts')
+
+    if thread_ts:
+        print("This is a reply in a thread. Skipping processing.")
+        return
+
+    if channel_id == Config.ALERT_CHANNEL_ID and user and not bot_id:
+        # Get the alert response from GPT (This will be your RCA response)
+        gpt_response = get_alert_info(message_text)
+        formatted_alert_response = format_alert_response(gpt_response)
+
+        # Send the alert response with a button to trigger RCA
+        client.chat_postMessage(
+            channel=channel_id,  # Send the message to the same channel
+            text=formatted_alert_response,  # Set the formatted message as the main text
+            thread_ts=message_ts,  # Ensure the response is in the thread
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": formatted_alert_response  # Adding the formatted RCA message here
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "Would you like to provide an RCA for this alert?"
+                    },
+                    "accessory": {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Provide RCA",
+                            "emoji": True
+                        },
+                        "value": "provide_rca",
+                        "action_id": "button-action"
+                    }
+                }
+            ]
+        )
+
+@compare_bp.route("/slack/interact", methods=["POST"])
+def slack_interact():
+    print("Event received",request.form.get("payload"))
+    try:
+        raw_payload = request.form.get('payload')
+        if not raw_payload:
+            return jsonify({'error': 'No payload found'}), 400
+
+        payload = json.loads(raw_payload)
+
+        if payload.get("type") == "view_submission":
+            return handle_rca_submission(payload)
+
+        user_id = payload['user']['id']
+        action_id = payload['actions'][0]['action_id']
+        action_value = payload['actions'][0]['value']
+        message_ts = payload['container']['message_ts']
+        channel_id = payload['channel']['id']
+
+        print(f"User {user_id} clicked a button with action_id: {action_id} and value: {action_value}")
+
+        if action_id == 'button-action':
+            trigger_id = payload['trigger_id']
+            open_modal(trigger_id)
+            return jsonify({
+                'response_type': 'ephemeral',
+                'text': f"Hey <@{user_id}>, you clicked Button 1!"
+            })
+
+        elif action_id == 'button_action_2':
+            return jsonify({
+                'response_type': 'ephemeral',
+                'text': f"Hey <@{user_id}>, you clicked Button 2!"
+            })
+
+        else:
+            return jsonify({'error': 'Unknown action'}), 400
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@compare_bp.route("/slack/rca", methods=['POST'])
+def handle_rca_command():
+    if "thread_ts" not in request.form:
+        response = jsonify({
+            "response_type": "ephemeral",
+            "text": "The /rca command can only be used in threads. Please use it within a thread."
+        })
+        response.status_code = 200
+        return response
+
+    try:
+        client.views_open(
+            trigger_id=request.form["trigger_id"],
+            view={
+                "type": "modal",
+                "callback_id": "modal_submission",
+                "title": {"type": "plain_text", "text": "Finance on call bot"},
+                "blocks": [
+                    {
+                        "type": "input",
+                        "block_id": "user_input_block",
+                        "element": {
+                            "type": "plain_text_input",
+                            "action_id": "user_input_action",
+                        },
+                        "label": {"type": "plain_text", "text": "Enter something:"},
+                    }
+                ],
+                "submit": {"type": "plain_text", "text": "Submit"},
+            },
+        )
+    except SlackApiError as e:
+        print(f"Error opening modal: {e.response['error']}")
+
+    return jsonify({"response_type": "ephemeral"}), 200
+
+
+
+
+
+
