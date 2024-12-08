@@ -1,10 +1,12 @@
 import json
 from typing import Dict
-from openai import OpenAI, BaseModel
 import os
+import openai
+from openai import OpenAI, BaseModel
 from app.config import Config
 
-client = OpenAI(api_key = "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")
+openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key =Config.OPENAI_API_KEY)
 
 
 class AlertResponse(BaseModel):
