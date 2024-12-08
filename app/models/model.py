@@ -49,14 +49,16 @@ class SolutionModel:
 
         most_similar_index, similarity_score = self.calculate_similarity(new_question, stored_questions)
 
+        print(most_similar_index)
+
         if similarity_score > 0.6:
             return self.solutions_db[stored_questions[most_similar_index]], similarity_score
         else:
             return None, similarity_score
 
-    def store_solution(self, question, rca, solution):
+    def store_solution(self, alert, rca, short_term_fix, long_term_fix="NA", remarks="NA", spoc="NA"):
         """Store the RCA and solution in the JSON database."""
-        self.solutions_db[question] = {"rca": rca, "solution": solution}
+        self.solutions_db[alert] = {"rca": rca, "short_term_fix": short_term_fix, "long_term_fix": long_term_fix,"remarks": remarks, "spoc": spoc}
         self.save_solutions_db()
         return "Solution stored successfully"
 
@@ -64,12 +66,15 @@ class SolutionModel:
         """Store multiple RCA and solution pairs in bulk."""
         success_count = 0
         for solution_data in solutions:
-            question = solution_data.get('question')
+            alert = solution_data.get('alert')
             rca = solution_data.get('rca')
-            solution = solution_data.get('solution')
+            short_term_fix = solution_data.get('short_term_fix')
+            long_term_fix = solution_data.get('long_term_fix')
+            remarks = solution_data.get('remarks')
+            spoc = solution_data.get('spoc')
 
-            if question and rca and solution:
-                self.store_solution(question, rca, solution)
+            if alert and rca and short_term_fix:
+                self.store_solution(alert, rca, short_term_fix,long_term_fix,remarks,spoc)
                 success_count += 1
 
         return success_count

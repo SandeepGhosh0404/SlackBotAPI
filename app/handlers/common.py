@@ -35,3 +35,11 @@ def handle_rca_submission(payload):
         })
     except Exception as e:
         return jsonify({"error": f"Failed to update Confluence page: {str(e)}"}), 500
+
+def handle_issue_submission(payload):
+    state_values = payload["view"]["state"]["values"]
+    issue = state_values["issue_block"]["issue_input"]["value"]
+
+    return issue
+
+

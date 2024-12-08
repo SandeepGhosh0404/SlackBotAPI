@@ -86,7 +86,6 @@ def analyze_sentence(sentence: str) -> Dict[str, str]:
 
     return response_data
 
-
 def get_alert_info_with_context(alert, historical_data=None):
     if historical_data:
         prompt = f"""

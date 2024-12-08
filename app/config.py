@@ -15,4 +15,5 @@ class Config:
     TESTING = os.getenv("TESTING")
     CONFLUENCE_PAGE_ID: str = os.getenv("CONFLUENCE_PAGE_ID")
     BOT_ID = os.getenv("BOT_ID")
+    DOC_GEN_CHANNEL_ID = os.getenv("DOC_GEN_CHANNEL_ID")
   

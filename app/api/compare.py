@@ -12,7 +12,7 @@ from app.config import Config
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
 from app.utils.utils import format_alert_response,open_modal
-from app.handlers.common import handle_rca_submission
+from app.handlers.common import handle_rca_submission, handle_issue_submission
 from slack_sdk.signature import SignatureVerifier
 import json
 import re
@@ -35,7 +35,7 @@ def compare_sentences():
         solution, similarity_score = solution_model.get_solution(new_question)
         if solution is not None:
             return jsonify({
-                "answer": solution["solution"],
+                "answer": solution["rca"],
                 "similarity_score": similarity_score
             })
         else:
@@ -104,12 +104,16 @@ def sync_confluence():
     try:
         result= []
         table_data = get_confluence_page(page_id)
+        print(table_data)
         for row in table_data[1:]:
-            question, rca, solution = row
+            alert, rca, short_term_fix, long_term_fix,remarks,spoc = row
             result.append({
-                "question": question,
+                "alert": alert,
                 "rca": rca,
-                "solution": solution
+                "short_term_fix": short_term_fix,
+                "long_term_fix": long_term_fix,
+                "remarks": remarks,
+                "spoc": spoc
             })
         success_count = solution_model.store_solutions_bulk(result)
         return jsonify({"message": f"{success_count} solutions stored successfully"}), 200
@@ -177,19 +181,17 @@ def extract_text():
 @compare_bp.route("/slack/command", methods=['POST'])
 def handle_slash_command():
     try:
-        # Send immediate response to Slack to avoid "invalid_command_response" error
         response = jsonify({
             "response_type": "ephemeral",
             "text": "Opening the Finance On-Call modal..."
         })
         response.status_code = 200
 
-        # Open a modal using the Slack API (this will happen after the 200 OK response)
         client.views_open(
             trigger_id=request.form["trigger_id"],
             view={
                 "type": "modal",
-                "callback_id": "modal_submission",
+                "callback_id": "issue_modal",
                 "title": {"type": "plain_text", "text": "Finance On-Call Bot"},
                 "blocks": [
                     {
@@ -198,21 +200,10 @@ def handle_slash_command():
                         "element": {
                             "type": "plain_text_input",
                             "action_id": "issue_input",
-                            "multiline": True  # Allows multiple lines for the issue
+                            "multiline": True
                         },
                         "label": {"type": "plain_text", "text": "Issue (Required)"},
-                        "optional": False  # This makes it a required input
-                    },
-                    {
-                        "type": "input",
-                        "block_id": "error_block",
-                        "element": {
-                            "type": "plain_text_input",
-                            "action_id": "error_input",
-                            "multiline": True  # Allows multiple lines for the error
-                        },
-                        "label": {"type": "plain_text", "text": "Error (Optional)"},
-                        "optional": True  # This makes it an optional input
+                        "optional": False
                     }
                 ],
                 "submit": {"type": "plain_text", "text": "Submit"}
@@ -239,8 +230,6 @@ def handle_message(event, say, client):
     user = event.get('user')
     bot_id = event.get('bot_id')
     thread_ts = event.get('thread_ts')
-
-    url_pattern = r'^(https?://|www\.)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(/\S*)?'
 
     print(message_text)
 
@@ -285,26 +274,30 @@ def handle_message(event, say, client):
 
 @compare_bp.route("/slack/interact", methods=["POST"])
 def slack_interact():
-    print("Event received",request.form.get("payload"))
     try:
         raw_payload = request.form.get('payload')
         if not raw_payload:
             return jsonify({'error': 'No payload found'}), 400
 
         payload = json.loads(raw_payload)
+        user_id = payload['user']['id']
+        action_id = payload.get('actions', [])
+        if action_id:
+            action_id = action_id[0].get('action_id', None)
+        else:
+            action_id = None
+        print(payload)
 
-        if payload.get("type") == "view_submission":
+        if payload.get("type") == "view_submission" and payload.get("view",{}).get("callback_id")!="issue_modal":
             return handle_rca_submission(payload)
 
-        user_id = payload['user']['id']
-        action_id = payload['actions'][0]['action_id']
-        action_value = payload['actions'][0]['value']
-        message_ts = payload['container']['message_ts']
-        channel_id = payload['channel']['id']
+        elif payload.get("view",{}).get("callback_id")=="issue_modal":
+            issue = handle_issue_submission(payload)
+            solution,similarity= solution_model.get_solution(issue)
+            return send_message_to_channel(Config.DOC_GEN_CHANNEL_ID,issue,solution)
 
-        print(f"User {user_id} clicked a button with action_id: {action_id} and value: {action_value}")
-
-        if action_id == 'button-action':
+        elif action_id == 'button-action':
+            print("Clicked")
             trigger_id = payload['trigger_id']
             open_modal(trigger_id)
             return jsonify({
@@ -372,16 +365,25 @@ def handle_mention(event, say):
     cleaned_text = text.replace(f"<@{app.client.auth_test()['user_id']}>", "").strip()
     solution, similarity_score = solution_model.get_solution(cleaned_text)
 
-    if solution:
-        response_text = f"*Hello <@{user_id}>!* Here's the most similar question you asked: \n\n" \
-                        f"*Question:* `{cleaned_text}`\n\n" \
-                        f"*Solution:* {solution}\n\n" \
-                        f"*Similarity Score:* {similarity_score}\n\n"
-    else:
-        response_text = f"*Hello <@{user_id}>!* I couldn't find a similar question to your query: \n\n" \
-                        f"*Question:* `{cleaned_text}`\n\n" \
-                        f"*Please provide the RCA and solution to help improve our knowledge base.*\n\n" \
-                        f"*Similarity Score:* {similarity_score}\n\n"
+    if solution is None:
+        if thread_ts:
+            client.chat_postMessage(
+                channel=channel_id,
+                thread_ts=thread_ts,  # Reply in the thread
+                text="Please provide the RCA and solution.",
+                mrkdwn=True
+            )
+        else:
+            thread_ts = message_ts  # Capture the timestamp of the new message
+            client.chat_postMessage(
+                channel=channel_id,
+                thread_ts=thread_ts,  # Reply in the thread
+                text="Please provide the RCA and solution.",
+                mrkdwn=True
+            )
+
+        return jsonify({"response_action": "clear"})
+
 
     blocks = [
         {
@@ -389,7 +391,12 @@ def handle_mention(event, say):
             "block_id": "solution_section",
             "text": {
                 "type": "mrkdwn",
-                "text": response_text
+                "text": f"*Issue:* {cleaned_text}\n\n"
+                        f"*Root Cause Analysis (RCA):*\n{solution['rca']}\n\n"
+                        f"*Short-Term Fix:*\n{solution['short_term_fix']}\n\n"
+                        f"*Long-Term Fix:*\n{solution['long_term_fix']}\n\n"
+                        f"*Remarks:*\n{solution['remarks']}\n\n"
+                        f"*SPOC:*\n{solution['spoc']}\n\n"
             }
         },
         {
@@ -430,6 +437,27 @@ def handle_mention(event, say):
 
     return "", 200
 
+def send_message_to_channel(channel_id,issue, solution):
 
+    if solution is None:
+        client.chat_postMessage(
+            channel=channel_id,
+            text="Please provide the RCA and solution.",
+            mrkdwn=True
+        )
+        return jsonify({"response_action": "clear"})
 
-
+    try:
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"*Issue:* {issue}\n\n"
+                        f"*Root Cause Analysis (RCA):*\n{solution['rca']}\n\n"
+                        f"*Short-Term Fix:*\n{solution['short_term_fix']}\n\n"
+                        f"*Long-Term Fix:*\n{solution['long_term_fix']}\n\n"
+                        f"*Remarks:*\n{solution['remarks']}\n\n"
+                        f"*SPOC:*\n{solution['spoc']}\n\n",
+            mrkdwn=True
+        )
+        return jsonify({"response_action": "clear"})
+    except SlackApiError as e:
+        return jsonify({"error": f"Failed to send message: {e.response['error']}"})
